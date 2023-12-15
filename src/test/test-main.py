@@ -3,6 +3,7 @@ input_params_model = [
     {
         "key": "model:1",
         "tags": ["用户", "公司"],
+        "object": "abc",
         "user": [
             {"key": "model:1:user:1",
              "tags": [1, 2, 3]
@@ -29,13 +30,69 @@ input_params_model = [
     },
 ]
 
-rules = [
+input_params_model1 = {
+        "key": "model:1",
+        "tags": ["用户", "公司"],
+        "user": [
+            {"key": "model:1:user:1",
+             "tags": [1, 2, 3]
+             },
+            {"key": "model:1:user:2",
+             "tags": [4, 5, 6]
+             }
+        ],
+        "object": "123456"
+    }
+
+# 输入list模型映射到出参对象类型
+rules1 = [
     # 注册根节点类型【第一条必须是定义根节点类型【 {} or [] 】】
     ("", "", "{}"),
     # list节点必须注册【触发当前list节点后续不会在使用，也就是不会出现在出参模型中】
     ("$", "$.model", "[]"),
     # 注册list节点【标识：$.model.userInfo 是一个list，并映射到入参模型的$.user】
     ("$.user", "$.model.userInfo", "[]"),
+    # 映射list。将入参模型list中的每一项做一定处理之后，生成新的出参模型list
+    ("$.tags", "$.model.tag", 'handler(_cur)'),
+    # 映射普通字段对应关系，并做对应处理
+    ("$.user.key", "$.model.userInfo.id", "_cur"),
+    # 【[】表示聚合list，将list作为一个整体来处理，但是这实际是一个映射，因为在转换逻辑中编写了列表推导式
+    ("$.tags[", "$.model.tags", '[ str(i) +" - tags" for i in _cur or []]'),
+    # 聚合列表，将tags列表聚合为了一个字符串【当前也是list节点，但是不用注册，因为tags没有后续节点】
+    ("$.user.tags[", "$.model.userInfo.companyInfo.tags", "str(_cur) + ' - desc'"),
+    ("$.user.company.name", "$.model.userInfo.companyInfo.name", ""),
+    ("$.user.company.id", "$.model.userInfo.companyInfo.id", ""),
+
+]
+
+# 输入list模型映射到出参list类型
+rules2 = [
+    # 注册根节点类型【第一条必须是定义根节点类型【 {} or [] 】】
+    ("", "", "[]"),
+    # 注册list节点【标识：$.model.userInfo 是一个list，并映射到入参模型的$.user】
+    ("$.user", "$.model.userInfo", "[]"),
+    # 对象映射到list
+    ("$.object", "$.model.list", "[str(i) for i in _cur or []]"),
+    # 映射list。将入参模型list中的每一项做一定处理之后，生成新的出参模型list
+    ("$.tags", "$.model.tag", 'handler(_cur)'),
+    # 映射普通字段对应关系，并做对应处理
+    ("$.user.key", "$.model.userInfo.id", "_cur"),
+    # 【[】表示聚合list，将list作为一个整体来处理，但是这实际是一个映射，因为在转换逻辑中编写了列表推导式
+    ("$.tags[", "$.model.tags", '[ str(i) +" - tags" for i in _cur or []]'),
+    # 聚合列表，将tags列表聚合为了一个字符串【当前也是list节点，但是不用注册，因为tags没有后续节点】
+    ("$.user.tags[", "$.model.userInfo.companyInfo.tags", "str(_cur) + ' - desc'"),
+    ("$.user.company.name", "$.model.userInfo.companyInfo.name", ""),
+    ("$.user.company.id", "$.model.userInfo.companyInfo.id", ""),
+
+]
+
+rules3 = [
+    # 注册根节点类型【第一条必须是定义根节点类型【 {} or [] 】】
+    ("", "", "{}"),
+    # 注册list节点【标识：$.model.userInfo 是一个list，并映射到入参模型的$.user】
+    ("$.user", "$.model.userInfo", "[]"),
+    # 对象映射到list
+    ("$.object", "$.model.list", "[str(i) for i in _cur or []]"),
     # 映射list。将入参模型list中的每一项做一定处理之后，生成新的出参模型list
     ("$.tags", "$.model.tag", 'handler(_cur)'),
     # 映射普通字段对应关系，并做对应处理
@@ -64,6 +121,17 @@ def handler(tags):
 modules = ["time as my_time"]
 
 
-mapper = ParameterMapper(rules, modules, func_def)
+mapper = ParameterMapper(rules1, modules, func_def)
 output_result = mapper.map_parameters(input_params_model)
+print("输入list模型映射到出参对象类型:")
+print(output_result)
+
+mapper = ParameterMapper(rules2, modules, func_def)
+output_result = mapper.map_parameters(input_params_model)
+print("输入list模型映射到出参list类型:")
+print(output_result)
+
+mapper = ParameterMapper(rules3, modules, func_def)
+output_result = mapper.map_parameters(input_params_model1)
+print("输入对象模型映射到出参对象类型:")
 print(output_result)

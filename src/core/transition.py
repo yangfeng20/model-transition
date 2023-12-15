@@ -58,7 +58,11 @@ class ParameterMapper:
         result = input_model
         e_node_list = input_e.split('.')
         e_node = e_node_list[0]
+        # 根节点dict处理
         is_last_node = len(e_node_list) == 1
+        if isinstance(input_model, dict) and input_e.find("$") != -1:
+            e_node = e_node_list[1]
+            is_last_node = len(e_node_list) == 2
 
         if e_node == "":
             raise Exception("input表达式不能为空")
@@ -95,6 +99,9 @@ class ParameterMapper:
                 yield auto_get_item
             else:
                 root_key = ".".join(e_node_list[1:])
+                # 根节点dict处理
+                if isinstance(input_model, dict) and input_e.find("$") != -1:
+                    root_key = ".".join(e_node_list[2:])
                 result_gen = self.read_input_value(root_key, auto_get_item)
                 for value in result_gen:
                     # 最后一个节点，是list，并且没有list聚合标识，那么就一个一个返回list中的数据
@@ -104,6 +111,13 @@ class ParameterMapper:
                             yield item
                     else:
                         yield value
+
+    def pre_handler(self):
+        # 根节点为list时，映射入参和出参模型
+        if isinstance(self.output_model_result, list):
+            if not isinstance(self.input_model, list):
+                raise Exception("输出模型根节点为list时，输入模型根节点也必须是list")
+            self.output_input_link['$'] = '$'
 
     def map_parameters(self, input_model):
         # 从每条规则开始，每条规则对应多个value
@@ -120,6 +134,8 @@ class ParameterMapper:
         # 初始化根对象数据类型
         self.output_model_result = eval(self.mapping_rules[0][2])
         self.input_model = input_model
+
+        self.pre_handler()
 
         for rule in self.mapping_rules[1:]:
             input_key, output_key_def, expression = rule[:3]
@@ -148,6 +164,10 @@ class ParameterMapper:
 
         index_key = "$"
         for cur_out_key in output_keys[:-1]:
+            # 输出根节点list处理
+            if cur_out_key == "$" and isinstance(self.output_model_result, list):
+                current_output = self.list_select_item(current_output, "$")
+                continue
             if cur_out_key == "$":
                 continue
             index_key += "." + cur_out_key
@@ -204,7 +224,7 @@ class ParameterMapper:
             raise Exception("当前输出模型索引：", index_key, "未映射输入模型索引")
         cur_list_index = self.input_index.get(cur_out_link_input_key, None)
         if cur_list_index is None:
-            raise Exception("当前输出模型：", index_key, "映射到的输入模型: ", cur_list_index, "没有对应索引")
+            raise Exception("当前输出模型：", index_key, "映射到的输入模型: ", cur_out_link_input_key, "没有对应索引")
         if not self.index_exist(current_output, cur_list_index):
             current_output.append({})
         current_output = current_output[cur_list_index]
